@@ -10,19 +10,33 @@ from bs4 import BeautifulSoup
 def scrape_multiple(search_terms, delay=1):
     csv_writer = csv.writer(open("amazon.csv", mode="w"))
     label_printed = False
+    amazon_map = {}
     for index, search_term in enumerate(search_terms):
-        labels, values = scrape(search_term, delay=delay, suppress_labels=(index!=0))
-        if len(labels) == 0:
+        product_map = scrape(search_term, delay=delay, suppress_labels=(index != 0))
+        if len(product_map) == 0:
             continue
-        if not label_printed:
-            csv_writer.writerow(labels)
-            label_printed = True
-        csv_writer.writerow(values)
+
+        if len(amazon_map) != 0:
+            for key in amazon_map.keys():
+                if key in product_map.keys():
+                    amazon_map[key] = amazon_map[key] + [product_map[key]]
+                else:
+                    amazon_map[key] = amazon_map[key] + [""]
+        else:
+            for key in product_map.keys():
+                amazon_map[key] = [product_map[key]]
+
+    csv_writer.writerow(list(amazon_map.keys()))
+
+    # number of rows is number of items in list for first key
+    key_list = list(amazon_map.keys())
+    print(amazon_map)
+    for i in range(len(amazon_map[key_list[0]])):
+        row = [amazon_map[key][i] for key in amazon_map.keys()] # get ith element in each key's list
+        csv_writer.writerow(row)
 
 def scrape(search_term, delay=0, suppress_labels=False):
-    #start_time = time.time()
-    url = get_url_v2(search_term)
-    #print("Url time: {}".format(time.time() - start_time))
+    url = get_url(search_term)
     headers = {'User-Agent': 'Mozilla/{}.0 (Windows NT 6.1) {} Chrome/{}.0.2228.0 Safari/537.36'.format(
         random.randint(1, 6), random.choice(["", "AppleWebKit/537.36 (KHTML, like Gecko)"]), random.randint(1, 41))}
     request = requests.get(url, headers=headers)
@@ -47,8 +61,8 @@ def scrape(search_term, delay=0, suppress_labels=False):
             if value[-1] == ":" or stuff[index - 1][-1] == ":":
                 new_stuff.append(value)
 
-        labels = [val[:-1] for val in new_stuff[::2]]
-        values = []
+        labels = ["Title", "Author", "Reviews", "Price"] + [val[:-1] for val in new_stuff[::2]]
+        values = [title, author, reviews, price]
 
         for val in new_stuff[1::2]:
             values.append(val[:-2] if val.endswith(" (") else val)
@@ -56,16 +70,15 @@ def scrape(search_term, delay=0, suppress_labels=False):
         summary = doc.xpath("//div[@id='iframeContent']")
 
         if not suppress_labels:
-            print(["Title", "Author", "Reviews", "Price"] + labels)
-        print([title, author, reviews, price] + values)
+            print(labels)
+        print(values)
 
     except:
         print("Error")
-        return [[], []]
-    #print("Total time: {}".format(time.time() - start_time))
+        return {}
     time.sleep(delay)
 
-    return [["Title", "Author", "Reviews", "Price"] + labels, [title, author, reviews, price] + values]
+    return dict(zip(labels, values))
 
 def get_url(search_term):
     results = search(search_term + " amazon", stop=1)
